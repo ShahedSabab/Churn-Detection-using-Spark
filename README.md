@@ -5,8 +5,8 @@ The dataset includes different information about customers. The objective is to 
 • MLlib and pyspark is used to build the model. <br/>
 • Feature vectorization is performed to convert the categorical features.<br/>
 • Random undersampling is performed to the majority class (i.e., No Churn) and random oversampling is performed to the minority class (i.e., Churn) to balance the class distribution.<br/>
-• Logistic regression is applied to the balanced data.<br/>
-• 0.92 AUC (Area Under Curve) is achieved. <br/>
+• Logistic regression, Random Forest and Gradient Boosting Tree are applied to the balanced data.<br/>
+• The best performance is achieved for the Gradient Boost Tree with AUC (Area Under Curve) = 0.92<br/>
 <br/>
 ## Initial Distribution of the Class (i.e., Churn):
 ![](initial_distribution.PNG)
