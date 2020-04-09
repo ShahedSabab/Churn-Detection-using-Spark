@@ -9,13 +9,13 @@ The dataset includes different information about customers. The objective is to 
 • 0.92 AUC (Area Under Curve) is achieved. <br/>
 <br/>
 ## Initial Distribution of the Class (i.e., Churn):
-![](inintial_distribution.png)
+![](inintial_distribution.PNG)
 
 ## Distribution after sampling:
-![](post_distribution.png)
+![](post_distribution.PNG)
 
 ## Area Under Curve (AUC):
-![](auc.png)
+![](auc.PNG)
 
 
 
