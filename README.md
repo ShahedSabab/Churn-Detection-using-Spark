@@ -1,6 +1,6 @@
 ## Customer Churn Detection
 
-The dataset includes different information about customers. The objective is to predict customer churn from the data. The input data is highly imbalanced consisting 150 chur and 750 no churn customer.
+The dataset includes different information about customers. The objective is to predict customer churn from the data. The input data is highly imbalanced consisting 150 churn (i.e., churn = 1) and 750 no churn (i.e., churn = 0) customers. Check the customer_churn.csv dataset for details.
 
 • MLlib and pyspark is used to build the model.
 • Feature vectorization is performed to convert the categorical features.
