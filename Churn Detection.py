@@ -5,18 +5,20 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pyspark.sql import SparkSession
 from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import GBTClassifier
 from pyspark.ml import Pipeline
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.feature import StringIndexer
-from pyspark.ml.feature import OneHotEncoder
+from pyspark.ml.feature import OneHotEncoderEstimator
 from sklearn.utils import resample
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-
 
 # COMMAND ----------
 
 # DBTITLE 1,Read Data
+#reading data 
 spark = SparkSession.builder.appName('logReg').getOrCreate()
 df = spark.read.csv('/FileStore/tables/customer_churn.csv', header=True, inferSchema=True)
 
@@ -28,8 +30,11 @@ display(df)
 # COMMAND ----------
 
 # DBTITLE 1,Calculate churn and no churn data count
+#check churn vs no churn data distribution
 no_churn = df.filter(df['Churn']==0).count()
 churn = df.filter(df['Churn']==1).count()
+print("Churn :", churn)
+print("No Churn :", no_churn)
 diff = (no_churn - churn) /2
 upSampleLength = churn + diff
 downSampleLength = no_churn - diff
@@ -98,60 +103,66 @@ df_select_col.printSchema()
 
 # COMMAND ----------
 
-#performing one hot encoding
-company_indexer = StringIndexer(inputCol='Company', outputCol='CompanyIndex')
-indexer = company_indexer.fit(df_select_col)
-company_vec = indexer.transform(df_select_col)
+#vectorizing categorical features using string indexer and one hot encoder
+categoricalColumns = ['Company']
+stages = []
+for categoricalCol in categoricalColumns:
+    stringIndexer = StringIndexer(inputCol = categoricalCol, outputCol = categoricalCol + 'Index')
+    encoder = OneHotEncoderEstimator(inputCols=[stringIndexer.getOutputCol()], outputCols=[categoricalCol + "classVec"])
+    stages += [stringIndexer, encoder]
+    #stages += [stringIndexer]
+
+numericCols = ['Age', 'Total_Purchase', 'Years', 'Num_Sites']
+assemblerInputs = [c + "classVec" for c in categoricalColumns] + numericCols
+
+#create the assembler
+assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features")
+stages += [assembler]
 
 # COMMAND ----------
 
-# initialize assembler
-assembler = VectorAssembler(inputCols=['Age', 'Total_Purchase', 'Years', 'Num_Sites', 'CompanyIndex'], outputCol='features')
-output = assembler.transform(company_vec)
-# Check 
-final_data = output.select('features', 'Churn')
-display(final_data)
+#pipeline of transforming features
+cols = df_select_col.columns
+pipeline = Pipeline(stages = stages)
+pipelineModel = pipeline.fit(df_select_col)
+df = pipelineModel.transform(df_select_col)
+selectedCols = ['features', 'Churn']
+df = df.select(selectedCols)
+df.printSchema()
 
 # COMMAND ----------
 
-# DBTITLE 1,Train-Test Split
-#train test split 
-train_data, test_data = final_data.randomSplit([0.7,0.3], seed=10)
-
-
-# COMMAND ----------
-
-# DBTITLE 1,Model generation
-#define model
-model = LogisticRegression(labelCol='Churn')
-fitted_model = model.fit(train_data)
-training_sum = fitted_model.summary
-training_sum.predictions.describe().show()
+#train-test split
+train, test = df.randomSplit([0.7, 0.3], seed = 20)
+print("Training Dataset Count: " + str(train.count()))
+print("Test Dataset Count: " + str(test.count()))
 
 # COMMAND ----------
 
-# DBTITLE 1,Model Evaluation 
-results = fitted_model.evaluate(test_data)
-results.predictions.show()
+#Logistic regression
+lr = LogisticRegression(featuresCol = 'features', labelCol = 'Churn', maxIter= 50)
+lrModel = lr.fit(train)
+predictions = lrModel.transform(test)
+evaluator = BinaryClassificationEvaluator(rawPredictionCol='prediction',labelCol='Churn')
+print('Linear Regression Test Area Under ROC', evaluator.evaluate(predictions))
 
 # COMMAND ----------
 
-#evaluate
-model_eval = BinaryClassificationEvaluator(rawPredictionCol='prediction',labelCol='Churn')
-auc = model_eval.evaluate(results.predictions)
-print("auc: ", auc)
+#Random Forest
+rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'Churn', numTrees=100)
+rfModel = rf.fit(train)
+predictions = rfModel.transform(test)
+evaluator = BinaryClassificationEvaluator(rawPredictionCol='prediction',labelCol='Churn')
+print('Random Forest Test Area Under ROC', evaluator.evaluate(predictions))
 
 # COMMAND ----------
 
-# MAGIC %matplotlib inline
-# MAGIC roc = training_sum.roc.toPandas()
-# MAGIC plt.figure(figsize=(10,10))
-# MAGIC plt.plot(roc['FPR'],roc['TPR'])
-# MAGIC plt.ylabel('False Positive Rate')
-# MAGIC plt.xlabel('True Positive Rate')
-# MAGIC plt.title('ROC Curve')
-# MAGIC plt.show()
-# MAGIC print('Training set areaUnderROC: ' + str(training_sum.areaUnderROC))
+#Gradient Boost
+gbt = GBTClassifier(featuresCol = 'features', labelCol = 'Churn',maxIter=100)
+gbtModel = gbt.fit(train)
+predictions = gbtModel.transform(test)
+evaluator = BinaryClassificationEvaluator(rawPredictionCol='prediction',labelCol='Churn')
+print('Gradient Boost Test Area Under ROC', evaluator.evaluate(predictions))
 
 # COMMAND ----------
 
